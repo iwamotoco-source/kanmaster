@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0a0e27">
-<title>KAN MASTER｜1級管工事施工管理技士 1次試験</title>
+<title>1級管MASTER｜1級管工事施工管理技士 1次試験</title>
 <link rel="manifest" href='data:application/manifest+json,{"name":"KAN MASTER","short_name":"KAN","start_url":".","display":"standalone","background_color":"%230a0e27","theme_color":"%2300f5ff","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22%3E%3Crect width=%22192%22 height=%22192%22 fill=%22%230a0e27%22 rx=%2224%22/%3E%3Ctext x=%2296%22 y=%22118%22 font-size=%2272%22 text-anchor=%22middle%22 fill=%22%2300f5ff%22 font-family=%22monospace%22 font-weight=%22bold%22%3EKM%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"}]}'>
 <style>
 :root{
@@ -177,11 +177,12 @@ main{flex:1;position:relative;z-index:1;overflow-y:auto}
 .exam-year-label{font-size:13px;font-weight:700;font-family:var(--font-mono);color:var(--neon-cyan)}
 .exam-container{
   display:grid;grid-template-columns:1fr 440px;
-  flex:1;min-height:0;overflow:hidden
+  flex:1;min-height:0;overflow:hidden;height:100%
 }
 .pdf-pane{
   background:var(--card);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;overflow:hidden;position:relative
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+  min-height:0;height:100%
 }
 .pdf-pane::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--neon-cyan),transparent);z-index:2}
 .pdf-tabs{display:flex;border-bottom:1px solid var(--border);background:rgba(10,14,39,.6);flex-shrink:0}
@@ -195,8 +196,8 @@ main{flex:1;position:relative;z-index:1;overflow-y:auto}
 .pdf-tab.active{color:var(--neon-cyan);border-bottom-color:var(--neon-cyan);background:rgba(0,245,255,.05)}
 .pdf-tab .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--text-dim);margin-left:5px;vertical-align:middle}
 .pdf-tab .dot.on{background:var(--neon-green);box-shadow:0 0 5px var(--neon-green)}
-.pdf-frame-wrap{flex:1;position:relative;background:#111}
-.pdf-frame-wrap iframe{width:100%;height:100%;border:none}
+.pdf-frame-wrap{flex:1;position:relative;background:#111;overflow:hidden}
+.pdf-frame-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;-webkit-overflow-scrolling:touch}
 .pdf-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--text-sub);text-align:center;padding:20px}
 .pdf-empty-icon{font-size:44px;filter:drop-shadow(0 0 8px var(--neon-cyan));opacity:.7}
 .pdf-actions{padding:8px 12px;border-top:1px solid var(--border);background:rgba(10,14,39,.6);display:flex;gap:8px;flex-shrink:0}
@@ -614,15 +615,6 @@ canvas.achart{width:100%;display:block;border-radius:var(--radius-sm)}
   .analytics-tab{flex-shrink:0;min-width:80px}
 }
 </style>
-
-  <link rel="manifest" href="/kanmaster/manifest.json">
-  <meta name="theme-color" content="#1bff0a">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="1級管MASTER">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="apple-touch-icon" href="/kanmaster/icon-192.png">
-  <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/kanmaster/sw.js').catch(()=>{});});}</script>
 </head>
 <body>
 <header>
@@ -1359,8 +1351,11 @@ async function loadPdf(slot){
     url=URL.createObjectURL(blob);
   }
   const iframe=document.createElement('iframe');
-  iframe.src=url+(src.type==='url'&&!url.includes('#')?'#view=FitH':'');
+  iframe.src=url;
   iframe.setAttribute('type','application/pdf');
+  iframe.style.overflow='scroll';
+  iframe.style.webkitOverflowScrolling='touch';
+  iframe.setAttribute('allowfullscreen','true');
   wrap.appendChild(iframe);
 }
 function openPdfNewTab(){
