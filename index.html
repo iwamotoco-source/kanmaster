@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0a0e27">
-<title>1級管MASTER｜1級管工事施工管理技士 1次試験</title>
+<title>KAN MASTER｜1級管工事施工管理技士 1次試験</title>
 <link rel="manifest" href='data:application/manifest+json,{"name":"KAN MASTER","short_name":"KAN","start_url":".","display":"standalone","background_color":"%230a0e27","theme_color":"%2300f5ff","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22%3E%3Crect width=%22192%22 height=%22192%22 fill=%22%230a0e27%22 rx=%2224%22/%3E%3Ctext x=%2296%22 y=%22118%22 font-size=%2272%22 text-anchor=%22middle%22 fill=%22%2300f5ff%22 font-family=%22monospace%22 font-weight=%22bold%22%3EKM%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"}]}'>
 <style>
 :root{
@@ -196,8 +196,13 @@ main{flex:1;position:relative;z-index:1;overflow-y:auto}
 .pdf-tab.active{color:var(--neon-cyan);border-bottom-color:var(--neon-cyan);background:rgba(0,245,255,.05)}
 .pdf-tab .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--text-dim);margin-left:5px;vertical-align:middle}
 .pdf-tab .dot.on{background:var(--neon-green);box-shadow:0 0 5px var(--neon-green)}
-.pdf-frame-wrap{flex:1;position:relative;background:#111;overflow:hidden}
-.pdf-frame-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;-webkit-overflow-scrolling:touch}
+.pdf-frame-wrap{flex:1;position:relative;background:#111;overflow:auto;-webkit-overflow-scrolling:touch}
+.pdf-canvas-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px;width:100%;box-sizing:border-box}
+.pdf-canvas-wrap canvas{max-width:100%;height:auto;display:block;box-shadow:0 2px 8px rgba(0,0,0,.5);border-radius:2px}
+.pdf-loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-sub);font-size:14px;text-align:center}
+.pdf-loading .spinner{display:inline-block;width:28px;height:28px;border:3px solid rgba(0,245,255,.2);border-top-color:var(--neon-cyan);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pdf-frame-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;-webkit-overflow-scrolling:touch;display:none}
 .pdf-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--text-sub);text-align:center;padding:20px}
 .pdf-empty-icon{font-size:44px;filter:drop-shadow(0 0 8px var(--neon-cyan));opacity:.7}
 .pdf-actions{padding:8px 12px;border-top:1px solid var(--border);background:rgba(10,14,39,.6);display:flex;gap:8px;flex-shrink:0}
@@ -615,6 +620,8 @@ canvas.achart{width:100%;display:block;border-radius:var(--radius-sm)}
   .analytics-tab{flex-shrink:0;min-width:80px}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}</script>
 </head>
 <body>
 <header>
@@ -1339,24 +1346,63 @@ function renderPdfTabs(){
 }
 async function loadPdf(slot){
   const wrap=$('#pdfFrameWrap');
-  wrap.querySelectorAll('iframe,embed').forEach(n=>n.remove());
+  wrap.innerHTML='';
   const src=getEffPdf(slot);
   const empty=$('#pdfEmpty');
   if(!src){empty.style.display='flex';empty.querySelector('div:nth-child(2)').textContent='PDFが設定されていません';return}
   empty.style.display='none';
   let url=src.value;
+  let blobUrl=null;
   if(src.type==='file'){
     const blob=await IDB.get(`${ST.year}_${slot}`);
     if(!blob){empty.style.display='flex';empty.querySelector('div:nth-child(2)').textContent='ファイルが見つかりません';return}
     url=URL.createObjectURL(blob);
+    blobUrl=url;
   }
-  const iframe=document.createElement('iframe');
-  iframe.src=url;
-  iframe.setAttribute('type','application/pdf');
-  iframe.style.overflow='scroll';
-  iframe.style.webkitOverflowScrolling='touch';
-  iframe.setAttribute('allowfullscreen','true');
-  wrap.appendChild(iframe);
+  // PDF.jsでレンダリング
+  if(window.pdfjsLib){
+    const loading=document.createElement('div');
+    loading.className='pdf-loading';
+    loading.innerHTML='<div class="spinner"></div><div>PDF読み込み中...</div>';
+    wrap.appendChild(loading);
+    try{
+      const pdf=await pdfjsLib.getDocument(url).promise;
+      loading.remove();
+      const canvasWrap=document.createElement('div');
+      canvasWrap.className='pdf-canvas-wrap';
+      wrap.appendChild(canvasWrap);
+      const wrapWidth=wrap.clientWidth-8;
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p);
+        const viewport0=page.getViewport({scale:1});
+        const scale=wrapWidth/viewport0.width;
+        const viewport=page.getViewport({scale:scale*2});
+        const canvas=document.createElement('canvas');
+        const ctx=canvas.getContext('2d');
+        canvas.width=viewport.width;
+        canvas.height=viewport.height;
+        canvas.style.width=(viewport.width/2)+'px';
+        canvas.style.height=(viewport.height/2)+'px';
+        await page.render({canvasContext:ctx,viewport:viewport}).promise;
+        canvasWrap.appendChild(canvas);
+      }
+    }catch(e){
+      loading.remove();
+      console.error('PDF.js error:',e);
+      // フォールバック: iframe
+      const iframe=document.createElement('iframe');
+      iframe.src=url;
+      iframe.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none';
+      wrap.appendChild(iframe);
+    }
+  }else{
+    // PDF.js未読み込み時のフォールバック
+    const iframe=document.createElement('iframe');
+    iframe.src=url;
+    iframe.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none';
+    wrap.appendChild(iframe);
+  }
+  if(blobUrl)setTimeout(()=>URL.revokeObjectURL(blobUrl),60000);
 }
 function openPdfNewTab(){
   const src=getEffPdf(ST.pdfTab);
