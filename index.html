@@ -1,10 +1,14 @@
 <!DOCTYPE html>
+<!-- KAN MASTER v4 | built: 2026-07-09 | cache-bust: 20260709-v4 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#0a0e27">
-<title>1級管工事MASTER｜1級管工事施工管理技士 1次試験</title>
+<title>KAN MASTER v4｜1級管工事施工管理技士 1次試験</title>
 <link rel="manifest" href='data:application/manifest+json,{"name":"KAN MASTER","short_name":"KAN","start_url":".","display":"standalone","background_color":"%230a0e27","theme_color":"%2300f5ff","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22%3E%3Crect width=%22192%22 height=%22192%22 fill=%22%230a0e27%22 rx=%2224%22/%3E%3Ctext x=%2296%22 y=%22118%22 font-size=%2272%22 text-anchor=%22middle%22 fill=%22%2300f5ff%22 font-family=%22monospace%22 font-weight=%22bold%22%3EKM%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"}]}'>
 <style>
 :root{
@@ -483,6 +487,7 @@ input:focus{outline:none;border-color:var(--neon-cyan);box-shadow:var(--glow-sof
 /* ===== TOAST ===== */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card-solid);color:var(--text);padding:11px 20px;border-radius:var(--radius);font-size:12px;border:1px solid var(--neon-cyan);box-shadow:var(--shadow-lg),0 0 18px rgba(0,245,255,.35);opacity:0;pointer-events:none;transition:opacity .28s,transform .28s;z-index:3000;font-family:var(--font-mono);letter-spacing:.03em;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.toast.danger{background:var(--neon-red);border-color:var(--neon-red)}
 .toast.error{border-color:var(--neon-red);box-shadow:0 0 18px rgba(255,77,109,.35)}
 .toast.success{border-color:var(--neon-green);box-shadow:0 0 18px rgba(57,255,136,.35)}
 
@@ -620,6 +625,7 @@ canvas.achart{width:100%;display:block;border-radius:var(--radius-sm)}
   .analytics-tab{flex-shrink:0;min-width:80px}
 }
 </style>
+
 </head>
 <body>
 <header>
@@ -1020,6 +1026,15 @@ canvas.achart{width:100%;display:block;border-radius:var(--radius-sm)}
    ============================================================ */
 
 /* ---- DATA ---- */
+
+/* ---- グローバルエラーキャッチ（デバッグ用） ---- */
+window.onerror = function(msg, src, line, col, err){
+  console.error('[GLOBAL ERROR]', msg, 'at', src, line+':'+col, err);
+  return false;
+};
+window.addEventListener('unhandledrejection', function(e){
+  console.error('[UNHANDLED PROMISE]', e.reason);
+});
 const YEARS=[
   {id:'R7',name:'令和7年',sub:'2025'},
   {id:'R6',name:'令和6年',sub:'2024'},
@@ -1202,19 +1217,31 @@ function getYear(id){return YEARS.find(y=>y.id===id)}
 
 /* ---- SCREEN ROUTER ---- */
 function goScreen(name){
-  $$('.screen').forEach(s=>s.classList.remove('active'));
-  $(`#screen-${name}`).classList.add('active');
-  // back button
-  $('#backBtn').style.display=(name==='home')?'none':'flex';
-  $('#printBtn').style.display=(name==='result')?'flex':'none';
-  // bottom nav
-  $$('.bnav-btn').forEach(b=>b.classList.remove('active'));
-  if(name==='home')$('#bnavHome').classList.add('active');
-  else if(name==='exam')$('#bnavExam').classList.add('active');
-  else if(name==='result')$('#bnavResult').classList.add('active');
-  else if(name==='guide')$('#bnavGuide').classList.add('active');
-  window.scrollTo(0,0);
-  if(name==='result'){renderHistList();drawScoreChart();renderWeakList();renderDetailContent()}
+  try{
+    var target = document.getElementById('screen-'+name);
+    if(!target){ console.error('goScreen: screen not found:', name); toast('画面エラー: '+name,'err'); return; }
+    $$('.screen').forEach(s=>s.classList.remove('active'));
+    target.classList.add('active');
+    // back button
+    var bb=$('#backBtn'); if(bb) bb.style.display=(name==='home')?'none':'flex';
+    var pb=$('#printBtn'); if(pb) pb.style.display=(name==='result')?'flex':'none';
+    // bottom nav
+    $$('.bnav-btn').forEach(b=>b.classList.remove('active'));
+    if(name==='home'){var bh=$('#bnavHome');if(bh)bh.classList.add('active');}
+    else if(name==='exam'){var be=$('#bnavExam');if(be)be.classList.add('active');}
+    else if(name==='result'){var br=$('#bnavResult');if(br)br.classList.add('active');}
+    else if(name==='guide'){var bg=$('#bnavGuide');if(bg)bg.classList.add('active');}
+    window.scrollTo(0,0);
+    if(name==='result'){
+      try{renderHistList();}catch(e){console.warn('renderHistList error',e);}
+      try{drawScoreChart();}catch(e){console.warn('drawScoreChart error',e);}
+      try{renderWeakList();}catch(e){console.warn('renderWeakList error',e);}
+      try{renderDetailContent();}catch(e){console.warn('renderDetailContent error',e);}
+    }
+  }catch(e){
+    console.error('goScreen fatal error:', e);
+    toast('画面遷移エラー: '+e.message, 'err');
+  }
 }
 function goHome(){
   stopTimer();ST.year=null;ST.grading=null;
@@ -1308,19 +1335,27 @@ function renderHomeWeak(){
 
 /* ---- START EXAM ---- */
 async function startExam(year){
-  ST.year=year;ST.mode='practice';ST.ans={mondaiA:{},mondaiB:{}};ST.grading=null;
-  ST.pdfTab='mondaiA';ST.mobilePaper='mondaiA';
-  const y=getYear(year);
-  $('#headerTitle').textContent=`${y.name} 1級管工事`;
-  $('#examYearLabel').textContent=`${y.name} 1級管工事施工管理技士 1次試験`;
-  $$('.mode-tab').forEach(t=>{t.classList.toggle('active',t.getAttribute('data-mode')==='practice')});
-  stopTimer();$('#timer').style.display='none';
-  renderPdfTabs();
-  await loadPdf(ST.pdfTab);
-  renderAnsBody();
-  updateMobilePaperVis();
-  updateProgress();
-  goScreen('exam');
+  try{
+    ST.year=year;ST.mode='practice';ST.ans={mondaiA:{},mondaiB:{}};ST.grading=null;
+    ST.pdfTab='mondaiA';ST.mobilePaper='mondaiA';
+    var y=getYear(year);
+    if(!y){ toast('年度データが見つかりません: '+year,'err'); return; }
+    var ht=$('#headerTitle'); if(ht) ht.textContent=y.name+' 1級管工事';
+    var el2=$('#examYearLabel'); if(el2) el2.textContent=y.name+' 1級管工事施工管理技士 1次試験';
+    $$('.mode-tab').forEach(t=>{t.classList.toggle('active',t.getAttribute('data-mode')==='practice')});
+    stopTimer();
+    var tm=$('#timer'); if(tm) tm.style.display='none';
+    try{ renderPdfTabs(); }catch(e){ console.warn('renderPdfTabs error',e); }
+    try{ renderAnsBody(); }catch(e){ console.warn('renderAnsBody error',e); }
+    try{ updateMobilePaperVis(); }catch(e){}
+    try{ updateProgress(); }catch(e){}
+    goScreen('exam');
+    // PDF読み込みは画面遷移後に非同期実行（UIブロックしない）
+    setTimeout(function(){ loadPdf(ST.pdfTab).catch(function(e){ console.warn('PDF load error:',e); }); }, 100);
+  }catch(e){
+    console.error('startExam fatal error:', e);
+    toast('試験開始エラー: '+e.message, 'err');
+  }
 }
 
 /* ---- PDF ---- */
@@ -1357,6 +1392,10 @@ async function loadPdf(slot){
     url=URL.createObjectURL(blob);
     blobUrl=url;
   }
+  // PDF.js workerSrc を確実に設定
+  if(window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc){
+    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
   if(!window.pdfjsLib){
     const iframe=document.createElement('iframe');
     iframe.src=url;
@@ -1372,7 +1411,7 @@ async function loadPdf(slot){
   wrap.appendChild(loading);
   try{
     const pdf=await pdfjsLib.getDocument(url).promise;
-    const wrapWidth=Math.max(wrap.clientWidth-8,200);
+    var wrapWidth=Math.max(wrap.clientWidth-8,300)||600;
     // スクロール可能な画像コンテナ
     const imgWrap=document.createElement('div');
     imgWrap.className='pdf-img-wrap';
@@ -2030,10 +2069,56 @@ $('#themeBtn').onclick=()=>{
 };
 
 /* ---- SERVICE WORKER ---- */
-if('serviceWorker' in navigator){
-  const sw=`const C='km-v1';self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(caches.open(C).then(c=>c.match(e.request).then(h=>{const f=fetch(e.request).then(r=>{if(r&&r.status===200&&r.type==='basic')c.put(e.request,r.clone());return r}).catch(()=>h);return h||f})))});`;
-  try{const b=new Blob([sw],{type:'application/javascript'});navigator.serviceWorker.register(URL.createObjectURL(b)).catch(()=>{})}catch(e){}
-}
+// Service Worker: キャッシュバスト & 旧SW解除
+(function(){
+  const CACHE_VER = 'km-v4';
+  if(!('serviceWorker' in navigator)) return;
+  // 旧SWを全解除 + 旧キャッシュを全削除してからSW再登録
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    const unregAll = regs.map(r => r.unregister());
+    return Promise.all(unregAll);
+  }).then(() => {
+    if(window.caches){
+      return caches.keys().then(keys => {
+        return Promise.all(keys.filter(k => k !== CACHE_VER).map(k => caches.delete(k)));
+      });
+    }
+  }).then(() => {
+    // ネットワーク優先・キャッシュなしの軽量SW
+    const swCode = `
+const CACHE='${CACHE_VER}';
+self.addEventListener('install', e => { self.skipWaiting(); });
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+self.addEventListener('fetch', e => {
+  // HTMLファイルは常にネットワーク優先（キャッシュしない）
+  if(e.request.destination === 'document'){
+    e.respondWith(fetch(e.request, {cache:'no-store'}).catch(() => caches.match(e.request)));
+    return;
+  }
+  // その他はネットワーク優先、失敗時キャッシュ
+  e.respondWith(
+    fetch(e.request).then(r => {
+      if(r && r.status === 200 && r.type === 'basic'){
+        const clone = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+      }
+      return r;
+    }).catch(() => caches.match(e.request))
+  );
+});`;
+    try {
+      const blob = new Blob([swCode], {type:'application/javascript'});
+      const url = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(url).catch(()=>{});
+    } catch(e) {}
+  }).catch(()=>{});
+})();
 
 /* ============================================================
    ADDED FEATURES: Gist Sync / Analytics / Category Advice
@@ -2052,14 +2137,17 @@ $('#analyticsBtn').onclick = () => { goScreen('analytics'); renderAnalytics(); }
 $('#settingsBtn').onclick  = openSettingsModal;
 
 /* ---- goScreen拡張: analytics追加 ---- */
-const _goScreenOrig = goScreen;
+var _goScreenOrig = goScreen;
 goScreen = function(name){
   _goScreenOrig(name);
-  if(name==='analytics'){ $$('.bnav-btn').forEach(b=>b.classList.remove('active')); $('#bnavAnalytics').classList.add('active'); }
+  if(name==='analytics'){
+    $$('.bnav-btn').forEach(b=>b.classList.remove('active'));
+    var ban=$('#bnavAnalytics'); if(ban) ban.classList.add('active');
+  }
 };
 
 /* ---- AUTO-SYNC after submitAnswers ---- */
-const _submitOrig = submitAnswers;
+var _submitOrig = submitAnswers;
 submitAnswers = function(){
   _submitOrig();
   if(S.gistPat() && S.gistId()) syncToGist(true);
@@ -2674,8 +2762,34 @@ window.addEventListener('resize',()=>{if($('#screen-result').classList.contains(
 document.documentElement.setAttribute('data-theme',S.theme());
 renderHome();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}</script>
+
+
+<!-- PDF.js: body末尾・非同期読み込み（メインスクリプトをブロックしない） -->
+<script>
+(function(){
+  // PDF.js を動的ロード（CDNが遅くてもメイン動作をブロックしない）
+  function loadPdfJs(){
+    if(window.pdfjsLib) return; // 既にロード済み
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.crossOrigin = 'anonymous';
+    s.onload = function(){
+      if(window.pdfjsLib){
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+    };
+    s.onerror = function(){ console.warn('PDF.js CDN load failed - iframe fallback will be used'); };
+    document.head.appendChild(s);
+  }
+  // DOMが準備できたらロード
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', loadPdfJs);
+  } else {
+    loadPdfJs();
+  }
+})();
+</script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
