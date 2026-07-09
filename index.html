@@ -1379,77 +1379,109 @@ function renderPdfTabs(){
 }
 async function loadPdf(slot){
   const wrap=$('#pdfFrameWrap');
-  wrap.innerHTML='';
+  if(!wrap) return;
+  // pdfEmptyを残して古いコンテンツだけ削除
+  Array.from(wrap.children).forEach(function(c){
+    if(c.id!=='pdfEmpty') c.remove();
+  });
+  const emptyEl=document.getElementById('pdfEmpty');
+  function showEmpty(msg){
+    if(!emptyEl) return;
+    emptyEl.style.display='flex';
+    var msgDiv=emptyEl.querySelector('div:nth-child(2)');
+    if(msgDiv) msgDiv.textContent=msg||'PDFが設定されていません';
+  }
+  function hideEmpty(){
+    if(emptyEl) emptyEl.style.display='none';
+  }
+
   const src=getEffPdf(slot);
-  const empty=$('#pdfEmpty');
-  if(!src){empty.style.display='flex';empty.querySelector('div:nth-child(2)').textContent='PDFが設定されていません';return}
-  empty.style.display='none';
+  if(!src){ showEmpty('PDFが設定されていません'); return; }
+  hideEmpty();
+
   let url=src.value;
   let blobUrl=null;
   if(src.type==='file'){
     const blob=await IDB.get(`${ST.year}_${slot}`);
-    if(!blob){empty.style.display='flex';empty.querySelector('div:nth-child(2)').textContent='ファイルが見つかりません';return}
+    if(!blob){ showEmpty('ファイルが見つかりません'); return; }
     url=URL.createObjectURL(blob);
     blobUrl=url;
   }
+
   // PDF.js workerSrc を確実に設定
   if(window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc){
-    pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
+
+  // PDF.js未ロード時: 最大3秒待ってからiframeフォールバック
   if(!window.pdfjsLib){
-    const iframe=document.createElement('iframe');
+    var waited=0;
+    await new Promise(function(resolve){
+      var iv=setInterval(function(){
+        waited+=200;
+        if(window.pdfjsLib||waited>=3000){ clearInterval(iv); resolve(); }
+      },200);
+    });
+  }
+
+  if(!window.pdfjsLib){
+    // iframeフォールバック
+    var iframe=document.createElement('iframe');
     iframe.src=url;
-    iframe.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none';
+    iframe.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none;-webkit-overflow-scrolling:touch';
     wrap.appendChild(iframe);
-    if(blobUrl)setTimeout(()=>URL.revokeObjectURL(blobUrl),60000);
+    if(blobUrl) setTimeout(function(){ URL.revokeObjectURL(blobUrl); },60000);
     return;
   }
+
   // ローディング表示
-  const loading=document.createElement('div');
+  var loading=document.createElement('div');
   loading.className='pdf-loading';
   loading.innerHTML='<div class="spinner"></div><div>PDF読み込み中...</div>';
   wrap.appendChild(loading);
+
   try{
     const pdf=await pdfjsLib.getDocument(url).promise;
     var wrapWidth=Math.max(wrap.clientWidth-8,300)||600;
     // スクロール可能な画像コンテナ
-    const imgWrap=document.createElement('div');
+    var imgWrap=document.createElement('div');
     imgWrap.className='pdf-img-wrap';
     wrap.appendChild(imgWrap);
     // 1ページずつcanvas→JPEG画像に変換
-    for(let p=1;p<=pdf.numPages;p++){
+    for(var p=1;p<=pdf.numPages;p++){
       const page=await pdf.getPage(p);
       const vp0=page.getViewport({scale:1});
       const scale=wrapWidth/vp0.width;
       const vp=page.getViewport({scale:scale*2});
-      const cv=document.createElement('canvas');
-      const cx=cv.getContext('2d');
+      var cv=document.createElement('canvas');
+      var cx=cv.getContext('2d');
       cv.width=Math.ceil(vp.width);
       cv.height=Math.ceil(vp.height);
       await page.render({canvasContext:cx,viewport:vp}).promise;
       // canvasをJPEG画像に変換
-      const img=document.createElement('img');
+      var img=document.createElement('img');
       img.className='pdf-page-img';
       img.src=cv.toDataURL('image/jpeg',0.85);
       img.style.width=Math.round(vp.width/2)+'px';
-      img.dataset.page=p;
+      img.dataset.page=String(p);
       imgWrap.appendChild(img);
       // ローディング進捗更新
-      loading.querySelector('div:last-child').textContent='PDF読み込み中... '+p+'/'+pdf.numPages+'ページ';
+      var progDiv=loading.querySelector('div:last-child');
+      if(progDiv) progDiv.textContent='読み込み中... '+p+'/'+pdf.numPages+'ページ';
       // canvas解放
-      cv.width=0;cv.height=0;
+      cv.width=0; cv.height=0;
     }
     loading.remove();
   }catch(e){
-    loading.remove();
+    if(loading.parentNode) loading.remove();
     console.error('PDF.js error:',e);
     // フォールバック: iframe
-    const iframe=document.createElement('iframe');
-    iframe.src=url;
-    iframe.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none';
-    wrap.appendChild(iframe);
+    var iframe2=document.createElement('iframe');
+    iframe2.src=url;
+    iframe2.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;border:none;-webkit-overflow-scrolling:touch';
+    wrap.appendChild(iframe2);
   }
-  if(blobUrl)setTimeout(()=>URL.revokeObjectURL(blobUrl),60000);
+  if(blobUrl) setTimeout(function(){ URL.revokeObjectURL(blobUrl); },60000);
 }
 function openPdfNewTab(){
   const src=getEffPdf(ST.pdfTab);
