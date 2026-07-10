@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>KAN MASTER v7｜1級管工事施工管理技士 1次試験</title>
-<!-- KAN MASTER v7 | built: 2026-07-09 | complete-rewrite -->
+<title>KAN MASTER v8｜1級管工事施工管理技士 1次試験</title>
+<!-- KAN MASTER v8 | built: 2026-07-09 | complete-rewrite -->
 <style>
 :root{
   --bg:#0a0e27;--bg-2:#111634;--card:#161c3e;--card-2:#1d2455;
@@ -691,12 +691,12 @@ canvas{max-width:100%}
 <div class="toast" id="toast"></div>
 
 <!-- PDF.js (loaded with defer for non-blocking) -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" onerror="console.warn('PDF.js CDN load failed')"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" onerror="console.warn('PDF.js CDN load failed')"></script>
 
 <script>
 
 /* ============================================================
-   KAN MASTER v7 — 1級管工事施工管理技士 1次試験 過去問演習
+   KAN MASTER v8 — 1級管工事施工管理技士 1次試験 過去問演習
    Complete Rewrite — 2026-07-09
    ============================================================ */
 
@@ -1083,7 +1083,8 @@ async function loadPdf(slot){
   try{
     var wrap=$('#pdfFrameWrap');if(!wrap)return;
     // Clear old content (keep pdfEmpty)
-    Array.prototype.forEach.call(wrap.children,function(c){if(c.id!=='pdfEmpty')c.remove()});
+    var children=Array.prototype.slice.call(wrap.children);
+    children.forEach(function(c){if(c.id!=='pdfEmpty')c.remove()});
     var emptyEl=$('#pdfEmpty');
     function showEmpty(msg){
       if(!emptyEl)return;
@@ -1101,50 +1102,60 @@ async function loadPdf(slot){
     var loading=el('div',{class:'pdf-loading'},el('div',{class:'spinner'}),'PDF読み込み中...');
     wrap.appendChild(loading);
 
+    function updateLoadMsg(msg){
+      if(!loading||!loading.parentNode)return;
+      var nodes=loading.childNodes;
+      for(var i=0;i<nodes.length;i++){if(nodes[i].nodeType===3)nodes[i].textContent=msg;}
+    }
+
     if(src.type==='file'){
-      // Local file from IndexedDB → blob URL → pdf.js
+      // Local file from IndexedDB → ArrayBuffer → pdf.js (全ページ描画)
       try{
         var blob=await IDB.get(ST.year+'_'+slot);
         if(!blob){loading.remove();showEmpty('ファイルが見つかりません');_pdfLoadingSlot=null;return}
         var blobUrl=URL.createObjectURL(blob);
-        await renderPdfWithPdfJs(wrap,blobUrl,loading);
-        setTimeout(function(){URL.revokeObjectURL(blobUrl)},120000);
+        var resp=await fetch(blobUrl);
+        var ab=await resp.arrayBuffer();
+        URL.revokeObjectURL(blobUrl);
+        await renderPdfWithPdfJs(wrap,{data:ab},loading);
       }catch(e){
-        console.warn('blob pdf load failed, trying iframe:',e);
-        loading.remove();
-        // Fallback: iframe
-        var blob2=await IDB.get(ST.year+'_'+slot);
-        if(blob2){
-          var bu2=URL.createObjectURL(blob2);
-          var ifr=el('iframe',{style:'display:block;width:100%;height:100%;min-height:500px;border:none;'});
-          ifr.src=bu2;
-          wrap.appendChild(ifr);
-          setTimeout(function(){URL.revokeObjectURL(bu2)},120000);
-        }else{showEmpty('ファイル読み込み失敗')}
+        console.warn('local file pdf.js failed:',e);
+        if(loading.parentNode)loading.remove();
+        showEmpty('PDFの読み込みに失敗しました。別タブボタンをご使用ください。');
       }
       _pdfLoadingSlot=null;
       return;
     }
 
-    // URL type: Try CORS proxy + pdf.js for all-page rendering
+    // URL type: fetch as ArrayBuffer via CORS proxies → pdf.js
     var rawUrl=src.value;
-    var proxyUrl='https://api.allorigins.win/raw?url='+encodeURIComponent(rawUrl);
-    try{
-      await renderPdfWithPdfJs(wrap,proxyUrl,loading);
-    }catch(e){
-      console.warn('pdf.js via proxy failed, trying direct fetch:',e);
-      // Fallback: try direct URL with pdf.js (may work if CORS header present)
+    // プロキシリスト (順番に試行)
+    var PROXIES=[
+      function(u){return 'https://corsproxy.io/?url='+encodeURIComponent(u)},
+      function(u){return 'https://api.allorigins.win/raw?url='+encodeURIComponent(u)},
+      function(u){return u} // direct fetch (CORS header必要、失敗する可能性あり)
+    ];
+    var proxyNames=['corsproxy.io','allorigins.win','direct'];
+    var loaded=false;
+    for(var pi=0;pi<PROXIES.length;pi++){
       try{
-        loading.querySelector('.spinner').nextSibling.textContent='再試行中...';
-        await renderPdfWithPdfJs(wrap,rawUrl,loading);
-      }catch(e2){
-        console.warn('direct pdf.js also failed, iframe fallback:',e2);
-        loading.remove();
-        // Final fallback: direct iframe (CORS doesn't apply to iframe)
-        var ifr2=el('iframe',{style:'display:block;width:100%;height:100%;min-height:500px;border:none;'});
-        ifr2.src=rawUrl;
-        wrap.appendChild(ifr2);
+        var proxyUrl=PROXIES[pi](rawUrl);
+        updateLoadMsg('PDF取得中 ('+proxyNames[pi]+')...');
+        var fetchResp=await fetchWithTimeout(proxyUrl,15000);
+        if(!fetchResp.ok)throw new Error('HTTP '+fetchResp.status);
+        var arrayBuf=await fetchResp.arrayBuffer();
+        if(arrayBuf.byteLength<1024)throw new Error('レスポンスが小さすぎます ('+arrayBuf.byteLength+' bytes)');
+        updateLoadMsg('PDF描画中...');
+        await renderPdfWithPdfJs(wrap,{data:arrayBuf},loading);
+        loaded=true;
+        break;
+      }catch(e){
+        console.warn('proxy['+proxyNames[pi]+'] failed:',e.message);
       }
+    }
+    if(!loaded){
+      if(loading.parentNode)loading.remove();
+      showEmpty('PDFの読み込みに失敗しました。↗ 別タブボタンで直接開いてください。');
     }
     _pdfLoadingSlot=null;
   }catch(e){
@@ -1153,26 +1164,44 @@ async function loadPdf(slot){
   }
 }
 
-// Render PDF with pdf.js — all pages as images (works on all devices incl. iOS Safari)
-async function renderPdfWithPdfJs(wrap,url,loadingEl){
-  // Wait for pdf.js to be available
-  var waited=0;
-  while(!window.pdfjsLib&&waited<5000){await new Promise(function(r){setTimeout(r,200)});waited+=200}
-  if(!window.pdfjsLib){
-    throw new Error('PDF.js not loaded');
+// タイムアウト付きfetch
+async function fetchWithTimeout(url,ms){
+  var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
+  var timer=ctrl?setTimeout(function(){ctrl.abort()},ms):null;
+  try{
+    var r=await fetch(url,ctrl?{signal:ctrl.signal}:{});
+    if(timer)clearTimeout(timer);
+    return r;
+  }catch(e){
+    if(timer)clearTimeout(timer);
+    throw e;
   }
-  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
-  var loadingTask=pdfjsLib.getDocument({url:url,withCredentials:false});
-  var pdf=await loadingTask;
+// Render PDF with pdf.js — all pages as images (works on all devices incl. iOS Safari)
+// pdfSrc: {data: ArrayBuffer} または {url: string}
+async function renderPdfWithPdfJs(wrap,pdfSrc,loadingEl){
+  // Wait for pdf.js to be available (max 10s)
+  var waited=0;
+  while(!window.pdfjsLib&&waited<10000){await new Promise(function(r){setTimeout(r,300)});waited+=300}
+  if(!window.pdfjsLib){
+    throw new Error('PDF.js not loaded (CDN timeout)');
+  }
+  // fakeWorker使用: workerSrcを空にするとメインスレッドで動作 (CrossOrigin問題なし)
+  pdfjsLib.GlobalWorkerOptions.workerSrc='';
+
+  var loadingTask=pdfjsLib.getDocument(pdfSrc);
+  var pdf=await loadingTask.promise;
   var numPages=pdf.numPages;
 
-  // Create image wrapper
+  // Create scrollable image wrapper
   var imgWrap=el('div',{class:'pdf-img-wrap'});
   wrap.appendChild(imgWrap);
 
-  var wrapWidth=Math.max(600,wrap.clientWidth||600);
-  var scale=Math.min(2,wrapWidth/800*1.5);
+  var wrapWidth=Math.max(wrap.clientWidth||600,600);
+  // デバイスピクセル比を考慮したスケール
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  var scale=Math.max(1.0,Math.min(2.5,(wrapWidth/800)*1.5))*dpr;
 
   for(var pageNum=1;pageNum<=numPages;pageNum++){
     var page=await pdf.getPage(pageNum);
@@ -1181,25 +1210,35 @@ async function renderPdfWithPdfJs(wrap,url,loadingEl){
     var ctx=canvas.getContext('2d');
     canvas.width=viewport.width;
     canvas.height=viewport.height;
+    canvas.style.display='none';
+    document.body.appendChild(canvas); // offscreen render
     await page.render({canvasContext:ctx,viewport:viewport}).promise;
 
     var img=document.createElement('img');
     img.className='pdf-page-img';
-    img.src=canvas.toDataURL('image/jpeg',0.85);
-    img.alt='Page '+pageNum;
+    img.style.maxWidth='100%';
+    img.style.display='block';
+    // JPEG変換でメモリ節約
+    img.src=canvas.toDataURL('image/jpeg',0.88);
+    img.alt='ページ '+pageNum;
     imgWrap.appendChild(img);
 
-    // Update progress
-    if(loadingEl){
-      var txt=loadingEl.querySelector('.spinner');
-      if(txt&&txt.nextSibling)txt.nextSibling.textContent='PDF読み込み中... '+pageNum+'/'+numPages;
-    }
-
-    // Cleanup canvas
+    // Cleanup
+    canvas.remove();
     canvas.width=0;canvas.height=0;
+
+    // Progress update
+    if(loadingEl&&loadingEl.parentNode){
+      var children=loadingEl.childNodes;
+      for(var i=0;i<children.length;i++){
+        if(children[i].nodeType===3)children[i].textContent=' '+pageNum+'/'+numPages+'ページ描画中...';
+      }
+    }
+    // Allow browser to breathe every 3 pages
+    if(pageNum%3===0)await new Promise(function(r){setTimeout(r,0)});
   }
 
-  // Remove loading
+  // Remove loading indicator
   if(loadingEl&&loadingEl.parentNode)loadingEl.remove();
 }
 
@@ -1849,7 +1888,7 @@ function updateAppInfo(){
   try{
     var h=S.hist();var qs=S.qstat();
     var totalQ=0;Object.keys(qs).forEach(function(y){Object.keys(qs[y]).forEach(function(){totalQ++})});
-    var html='Version: KAN MASTER v7<br>'+
+    var html='Version: KAN MASTER v8<br>'+
       'History: '+h.length+'件<br>'+
       'Question Stats: '+totalQ+'問<br>'+
       'Gist ID: '+(S.gistId()||'未設定')+'<br>'+
@@ -2268,7 +2307,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
 /* Service Worker for cache busting */
 if('serviceWorker' in navigator){
-  var SW_VER='km-v7-'+Date.now();
+  var SW_VER='km-v8-'+Date.now();
   var swCode='var CACHE="'+SW_VER+'";self.addEventListener("install",function(e){self.skipWaiting()});self.addEventListener("activate",function(e){e.waitUntil(self.clients.claim())});self.addEventListener("fetch",function(e){e.respondWith(fetch(e.request).catch(function(){return caches.match(e.request)}))})';
   try{
     var blob=new Blob([swCode],{type:'application/javascript'});
